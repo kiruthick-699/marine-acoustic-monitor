@@ -27,10 +27,15 @@ import argparse
 import json
 import os
 import random
+import sys
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
 from scipy.io import wavfile
+
+# allow running as `python simulation/scripts/run_simulation.py` (repo root
+# isn't on sys.path in that form, only via `python -m simulation.scripts...`)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from simulation.data_generator.synthetic_audio import generate_duty_cycle_sample
 from simulation.data_generator.synthetic_environmental import generate_environmental_series

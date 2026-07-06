@@ -13,8 +13,13 @@ truth.
 import argparse
 import json
 import os
+import sys
 
 import pandas as pd
+
+# allow running as `python simulation/scripts/evaluate.py` (repo root isn't
+# on sys.path in that form, only via `python -m simulation.scripts...`)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from simulation.pipeline.anomaly_detection import BaselineAnomalyDetector
 
