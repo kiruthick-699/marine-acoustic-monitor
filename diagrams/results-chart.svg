@@ -1,0 +1,55 @@
+<svg width="680" height="300" viewBox="0 0 680 300" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>Anomaly detection results on a synthetic simulation run</title>
+<desc>Precision 0.937, recall 0.808, F1 0.868, measured on one simulation run of 80 evaluation windows following a 20-window baseline calibration period.</desc>
+<style>
+text{font-family:Arial,Helvetica,sans-serif;}
+.title{font-size:16px;font-weight:600;fill:#2C2C2A;}
+.subtitle{font-size:12px;fill:#5F5E5A;}
+.label{font-size:13px;fill:#2C2C2A;}
+.value{font-size:13px;font-weight:600;fill:#04342C;}
+.tick{font-size:11px;fill:#888780;}
+.caveat{font-size:11px;fill:#888780;}
+.track{fill:#F1EFE8;}
+.bar{fill:#1D9E75;}
+.grid{stroke:#D3D1C7;stroke-width:1;stroke-dasharray:2 3;}
+.axis{stroke:#B4B2A9;stroke-width:1;}
+</style>
+
+<text class="title" x="24" y="30">Anomaly detection &#8212; example simulation run</text>
+<text class="subtitle" x="24" y="50">Precision, recall, and F1 on synthetic data (80 evaluation windows, 20-window baseline)</text>
+
+<!-- gridlines -->
+<line class="grid" x1="200" y1="80" x2="200" y2="244"/>
+<line class="grid" x1="305" y1="80" x2="305" y2="244"/>
+<line class="grid" x1="410" y1="80" x2="410" y2="244"/>
+<line class="grid" x1="515" y1="80" x2="515" y2="244"/>
+<line class="axis" x1="620" y1="80" x2="620" y2="244"/>
+
+<!-- Precision -->
+<text class="label" x="190" y="112" text-anchor="end">Precision</text>
+<rect class="track" x="200" y="94" width="420" height="24" rx="4"/>
+<rect class="bar" x="200" y="94" width="393.5" height="24" rx="4"/>
+<text class="value" x="601" y="112" text-anchor="end">0.937</text>
+
+<!-- Recall -->
+<text class="label" x="190" y="168" text-anchor="end">Recall</text>
+<rect class="track" x="200" y="150" width="420" height="24" rx="4"/>
+<rect class="bar" x="200" y="150" width="339.4" height="24" rx="4"/>
+<text class="value" x="547" y="168" text-anchor="end">0.808</text>
+
+<!-- F1 -->
+<text class="label" x="190" y="224" text-anchor="end">F1 score</text>
+<rect class="track" x="200" y="206" width="420" height="24" rx="4"/>
+<rect class="bar" x="200" y="206" width="364.6" height="24" rx="4"/>
+<text class="value" x="572" y="224" text-anchor="end">0.868</text>
+
+<!-- axis ticks -->
+<text class="tick" x="200" y="258" text-anchor="middle">0</text>
+<text class="tick" x="305" y="258" text-anchor="middle">0.25</text>
+<text class="tick" x="410" y="258" text-anchor="middle">0.50</text>
+<text class="tick" x="515" y="258" text-anchor="middle">0.75</text>
+<text class="tick" x="620" y="258" text-anchor="middle">1.00</text>
+
+<text class="caveat" x="24" y="282">Single run; this evaluation window had an unusually high anomaly rate (73/80 windows). Not yet</text>
+<text class="caveat" x="24" y="296">validated on real hardware or across multiple seeds &#8212; see simulation/README.md for methodology.</text>
+</svg>
