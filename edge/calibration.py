@@ -20,6 +20,7 @@ with a new baseline_version) is future work, noted in
 docs/pi-implementation.md.
 """
 
+import logging
 import os
 from pathlib import Path
 from typing import Optional
@@ -29,6 +30,8 @@ import joblib
 from edge.capture_loop import CaptureLoop
 from edge.config import EdgeConfig
 from simulation.pipeline.anomaly_detection import BaselineAnomalyDetector
+
+logger = logging.getLogger(__name__)
 
 
 def run_calibration(loop: CaptureLoop, config: EdgeConfig) -> BaselineAnomalyDetector:
@@ -50,18 +53,18 @@ def run_calibration(loop: CaptureLoop, config: EdgeConfig) -> BaselineAnomalyDet
     n_windows = config.calibration.calibration_windows
     feature_vectors = []
 
-    print(f"Running calibration: {n_windows} windows, assumed normal site conditions...")
+    logger.info("Running calibration: %d windows, assumed normal site conditions...", n_windows)
     for i in range(n_windows):
         summary = loop.run_one_window()
         feature_vectors.append(summary["feature_vector"])
         if (i + 1) % max(n_windows // 10, 1) == 0 or i == n_windows - 1:
-            print(f"  calibration window {i + 1}/{n_windows}")
+            logger.info("  calibration window %d/%d", i + 1, n_windows)
 
     detector = BaselineAnomalyDetector(threshold_sigma=config.calibration.threshold_sigma)
     detector.fit(feature_vectors)
     loop.set_detector(detector)
     save_baseline(detector, config.storage.baseline_model_path)
-    print(f"Calibration complete. Baseline saved to {config.storage.baseline_model_path}")
+    logger.info("Calibration complete. Baseline saved to %s", config.storage.baseline_model_path)
 
     return detector
 

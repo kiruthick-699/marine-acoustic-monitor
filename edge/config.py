@@ -53,6 +53,15 @@ class StorageConfig:
     audio_dir: str = "edge/output/audio"
     db_path: str = "edge/output/db.sqlite"
     baseline_model_path: str = "edge/output/baseline_model.joblib"
+    log_path: str = "edge/output/edge.log"
+
+
+@dataclasses.dataclass
+class LoggingConfig:
+    # Standard library logging level name ("DEBUG"/"INFO"/"WARNING"/...),
+    # applied to the "edge" logger tree (edge/logging_setup.py) -- controls
+    # both the rotating file handler and the console handler.
+    level: str = "INFO"
 
 
 @dataclasses.dataclass
@@ -118,6 +127,7 @@ class EdgeConfig:
     storage: StorageConfig = dataclasses.field(default_factory=StorageConfig)
     calibration: CalibrationConfig = dataclasses.field(default_factory=CalibrationConfig)
     hardware: HardwareConfig = dataclasses.field(default_factory=HardwareConfig)
+    logging: LoggingConfig = dataclasses.field(default_factory=LoggingConfig)
 
 
 def _merge_dataclass(instance, overrides: dict):

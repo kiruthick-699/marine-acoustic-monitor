@@ -14,20 +14,30 @@ Usage:
 
 import argparse
 import json
+import logging
 from pathlib import Path
 
 from edge.calibration import load_baseline, run_calibration
 from edge.capture_loop import CaptureLoop
 from edge.config import EdgeConfig, load_config
 from edge.hal.factory import build_hardware
+from edge.logging_setup import configure_logging
 from edge.scheduler import DutyCycleScheduler
 from simulation.pipeline.storage import init_db
 
 
-def _print_window_summary(summary: dict) -> None:
+# Not logging.getLogger(__name__): this module is normally run via
+# `python -m edge.main`, which sets its __name__ to "__main__" rather than
+# "edge.main" -- using __name__ here would silently detach this logger from
+# the "edge" tree edge/logging_setup.py configures (no handlers, default
+# root level), dropping every log line from this module.
+logger = logging.getLogger("edge.main")
+
+
+def _log_window_summary(summary: dict) -> None:
     flag = "ANOMALY" if summary["is_anomaly"] else "normal"
     calib = "" if summary["calibrated"] else " [uncalibrated placeholder score]"
-    print(
+    logger.info(
         f"[{summary['timestamp_utc']}] capture_id={summary['capture_id']} "
         f"score={summary['anomaly_score']:.4f} ({flag}){calib} "
         f"telemetry_sent={summary['telemetry_sent']}"
@@ -46,7 +56,7 @@ def build_app(config: EdgeConfig, force_calibrate: bool = False) -> CaptureLoop:
 
     detector = None if force_calibrate else load_baseline(config.storage.baseline_model_path)
     if detector is not None:
-        print(f"Loaded existing calibration baseline from {config.storage.baseline_model_path}")
+        logger.info(f"Loaded existing calibration baseline from {config.storage.baseline_model_path}")
         loop.set_detector(detector)
     else:
         run_calibration(loop, config)
@@ -71,16 +81,18 @@ def main() -> None:
     if args.mode:
         config.hardware.mode = args.mode
 
+    configure_logging(config)
+
     loop = build_app(config, force_calibrate=args.calibrate)
 
     if args.once:
         summary = loop.run_one_window()
-        _print_window_summary(summary)
-        print(json.dumps({k: v for k, v in summary.items() if k != "feature_vector"}, indent=2))
+        _log_window_summary(summary)
+        logger.info(json.dumps({k: v for k, v in summary.items() if k != "feature_vector"}, indent=2))
         return
 
-    scheduler = DutyCycleScheduler(loop, config, on_window=_print_window_summary)
-    print(
+    scheduler = DutyCycleScheduler(loop, config, on_window=_log_window_summary)
+    logger.info(
         f"Starting duty cycle: {config.duty_cycle.window_duration_s}s every "
         f"{config.duty_cycle.window_interval_minutes} min, hardware.mode={config.hardware.mode}"
     )

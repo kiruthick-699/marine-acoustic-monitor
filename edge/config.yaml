@@ -18,6 +18,10 @@ storage:
   audio_dir: edge/output/audio
   db_path: edge/output/db.sqlite
   baseline_model_path: edge/output/baseline_model.joblib
+  log_path: edge/output/edge.log
+
+logging:
+  level: INFO
 
 calibration:
   calibration_windows: 30

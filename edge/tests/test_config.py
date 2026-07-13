@@ -6,6 +6,8 @@ def test_default_config_is_valid_mock_mode():
     assert config.hardware.mode == "mock"
     assert config.duty_cycle.window_duration_s > 0
     assert config.duty_cycle.window_interval_minutes > 0
+    assert config.storage.log_path == "edge/output/edge.log"
+    assert config.logging.level == "INFO"
 
 
 def test_load_config_missing_file_returns_defaults(tmp_path):
@@ -34,6 +36,22 @@ hardware:
     assert config.hardware.i2c.bus_number == 2
     # untouched nested fields keep their defaults
     assert config.hardware.i2c.imu_address == "0x68"
+
+
+def test_load_config_applies_logging_overrides(tmp_path):
+    yaml_path = tmp_path / "config.yaml"
+    yaml_path.write_text(
+        """
+storage:
+  log_path: /tmp/custom-edge.log
+logging:
+  level: DEBUG
+"""
+    )
+    config = load_config(yaml_path)
+
+    assert config.storage.log_path == "/tmp/custom-edge.log"
+    assert config.logging.level == "DEBUG"
 
 
 def test_load_config_rejects_unknown_key(tmp_path):
