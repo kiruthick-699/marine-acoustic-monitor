@@ -73,13 +73,11 @@ class CaptureLoop:
 
     Rate-of-change (environmental_readings' *_roc columns) is computed
     against the *previous call's* raw reading, held in memory
-    (`self._prev_env_reading`). This means roc resets to 0 on process
-    restart rather than resuming from the last DB row -- acceptable for a
-    first implementation (a restart is already a break in the duty-cycle
-    continuity the roc signal is meant to capture) but noted here as a
-    known simplification; a future improvement would seed
-    `_prev_env_reading` from the most recent environmental_readings row on
-    startup.
+    (`self._prev_env_reading`). On construction this is seeded from the
+    most recently stored environmental_readings row (see
+    _load_last_env_reading()), so a process restart resumes roc continuity
+    from the last real reading instead of resetting to 0 for one window --
+    None only for a genuinely fresh database with no prior rows.
     """
 
     def __init__(
@@ -93,9 +91,30 @@ class CaptureLoop:
         self._hw = hardware
         self._db = db_conn
         self._detector = detector
-        self._prev_env_reading: Optional[Dict[str, float]] = None
+        self._prev_env_reading: Optional[Dict[str, float]] = self._load_last_env_reading()
 
         os.makedirs(self._config.storage.audio_dir, exist_ok=True)
+
+    def _load_last_env_reading(self) -> Optional[Dict[str, float]]:
+        """
+        Seed rate-of-change tracking from the most recently stored
+        environmental_readings row, joined through captures for correct
+        timestamp ordering (environmental_readings itself has no timestamp
+        column -- see docs/data-pipeline.md's schema). Returns None if the
+        table is empty (first-ever run against a fresh database).
+        """
+        row = self._db.execute(
+            """
+            SELECT e.temperature_c, e.ph, e.turbidity_ntu, e.salinity_psu
+            FROM environmental_readings e
+            JOIN captures c ON c.capture_id = e.capture_id
+            ORDER BY c.timestamp_utc DESC, c.capture_id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        if row is None:
+            return None
+        return dict(zip(_ENV_PARAMS, row))
 
     def set_detector(self, detector: BaselineAnomalyDetector) -> None:
         """Install a fitted calibration baseline (edge/calibration.py's output)."""

@@ -98,6 +98,40 @@ def test_rate_of_change_is_zero_on_first_window_then_nonzero_state_tracked(tmp_p
     assert loop._prev_env_reading is not None
 
 
+def test_new_capture_loop_resumes_prev_env_reading_from_db(tmp_path):
+    config = _make_config(tmp_path)
+    db_conn = init_db(config.storage.db_path)
+    hardware = build_hardware(config)
+    first_loop = CaptureLoop(config, hardware, db_conn)
+
+    assert first_loop._prev_env_reading is None  # fresh DB, no prior rows
+    first_loop.run_one_window()
+    stored_row = db_conn.execute(
+        "SELECT temperature_c, ph, turbidity_ntu, salinity_psu FROM environmental_readings"
+    ).fetchone()
+
+    # A brand-new CaptureLoop instance against the same, now-populated DB --
+    # standing in for a process restart -- should resume from that row
+    # instead of starting at None.
+    resumed_loop = CaptureLoop(config, hardware, db_conn)
+    assert resumed_loop._prev_env_reading == {
+        "temperature_c": stored_row[0],
+        "ph": stored_row[1],
+        "turbidity_ntu": stored_row[2],
+        "salinity_psu": stored_row[3],
+    }
+
+    # and its next window's roc is computed against that resumed reading,
+    # not 0 -- proving continuity actually survives the "restart", not just
+    # that _prev_env_reading happens to be populated.
+    summary = resumed_loop.run_one_window()
+    roc_row = db_conn.execute(
+        "SELECT temp_roc, ph_roc, turbidity_roc, salinity_roc FROM environmental_readings WHERE capture_id = ?",
+        (summary["capture_id"],),
+    ).fetchone()
+    assert any(roc != 0.0 for roc in roc_row)
+
+
 def test_save_and_load_baseline_round_trip(tmp_path):
     config = _make_config(tmp_path)
     db_conn = init_db(config.storage.db_path)
