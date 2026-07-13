@@ -1,6 +1,6 @@
 # Marine Ecosystem Monitoring System
 
-**Status: (In Development) — planning/architecture phase. No hardware purchased, no implementation code written yet.** Everything in this repo is design documentation. See [DECISIONS.md](DECISIONS.md) for the locked design decisions this documentation is built against.
+**Status: (In Development) — no hardware purchased yet; hardware BOM/pricing and a power budget are still open.** Design documentation is locked (see [DECISIONS.md](DECISIONS.md)). Two implementation trees now exist: `simulation/` (synthetic-hardware proof of the ML pipeline, see below) and `edge/` (the real production Pi-side software — capture loop, calibration, telemetry, scheduler — runnable today in mock-hardware mode with zero hardware attached; see [docs/pi-implementation.md](docs/pi-implementation.md)).
 
 ![Simulation results](diagrams/results-chart.svg)
 
@@ -22,6 +22,14 @@ Marine ecosystems generate continuous acoustic and environmental signal — biol
 - [docs/data-pipeline.md](docs/data-pipeline.md) — storage tiers, duty-cycle sampling flow, bulk retrieval process, SQLite schema sketch.
 - [docs/ml-pipeline.md](docs/ml-pipeline.md) — 3-stage ML pipeline: feature extraction, unsupervised anomaly detection, future supervised classification.
 - [docs/related-work.md](docs/related-work.md) — prior art and how this project's design differs.
+- [docs/pi-implementation.md](docs/pi-implementation.md) — how `edge/` runs today in mock-hardware mode, the I2C wiring/address plan for when hardware exists, and systemd deployment.
+
+## Implementation
+
+- `simulation/` — synthetic-hardware proof that the ML pipeline design works end-to-end (see [simulation/README.md](simulation/README.md)).
+- `edge/` — the real Pi-side production software: hardware abstraction layer (mock backend usable today, real backend stubbed for once hardware exists), capture loop, calibration, telemetry payload assembly, duty-cycle scheduler. Run `python -m edge.main --once` for a one-window smoke test. See [docs/pi-implementation.md](docs/pi-implementation.md).
+- `tools/power_budget.py` — standalone power budget estimator (duty cycle vs. solar/battery sizing) using placeholder component draw figures, pending a priced BOM. Run `python tools/power_budget.py --help`.
+- `deploy/marine-monitor.service` — systemd unit for running `edge/` unattended once real hardware is wired.
 
 ## Diagrams
 

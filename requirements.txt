@@ -4,3 +4,5 @@ pandas
 librosa
 scikit-learn
 pytest
+pyyaml
+joblib

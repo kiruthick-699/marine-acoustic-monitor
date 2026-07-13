@@ -1,0 +1,42 @@
+# Edge deployment configuration -- overrides on top of edge/config.py's
+# code-level defaults. Every key here is optional; omit anything you want to
+# leave at its default. See edge/config.py for the full field list and
+# docs/pi-implementation.md for the I2C address-plan rationale.
+
+duty_cycle:
+  window_duration_s: 5.0
+  window_interval_minutes: 10.0
+
+audio:
+  sample_rate_hz: 22050
+
+signal_conditioning:
+  bandpass_low_hz: 20.0
+  bandpass_high_hz: 12000.0
+
+storage:
+  audio_dir: edge/output/audio
+  db_path: edge/output/db.sqlite
+  baseline_model_path: edge/output/baseline_model.joblib
+
+calibration:
+  calibration_windows: 30
+  threshold_sigma: 5.0
+  baseline_version: v1
+  feature_vector_version: v1
+
+hardware:
+  # Flip to "real" once edge/hal/real.py's driver stubs are implemented
+  # against actual purchased hardware.
+  mode: mock
+  i2c:
+    bus_number: 1
+    env_sensor_addresses:
+      temperature: "0x44"
+      ph: "0x63"
+      turbidity: "0x48"
+      salinity: "0x64"
+    imu_address: "0x68"
+  telemetry:
+    type: lora
+    max_payload_bytes: 220

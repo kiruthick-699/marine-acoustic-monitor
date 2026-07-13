@@ -1,0 +1,48 @@
+"""
+Scheduler test: bounded run (max_iterations) with an injected no-op sleep_fn
+so the test doesn't actually wait on wall-clock duty-cycle intervals.
+"""
+
+from edge.capture_loop import CaptureLoop
+from edge.config import EdgeConfig
+from edge.hal.factory import build_hardware
+from edge.scheduler import DutyCycleScheduler
+from simulation.pipeline.storage import init_db
+
+
+def _make_config(tmp_path) -> EdgeConfig:
+    config = EdgeConfig()
+    config.duty_cycle.window_duration_s = 1.0
+    config.duty_cycle.window_interval_minutes = 10.0
+    config.audio.sample_rate_hz = 8000
+    config.storage.audio_dir = str(tmp_path / "audio")
+    config.storage.db_path = str(tmp_path / "db.sqlite")
+    config.storage.baseline_model_path = str(tmp_path / "baseline_model.joblib")
+    config.hardware.mode = "mock"
+    return config
+
+
+def test_run_forever_bounded_calls_on_window_and_sleep_each_iteration(tmp_path):
+    config = _make_config(tmp_path)
+    db_conn = init_db(config.storage.db_path)
+    hardware = build_hardware(config)
+    loop = CaptureLoop(config, hardware, db_conn)
+
+    sleep_calls = []
+    window_summaries = []
+
+    scheduler = DutyCycleScheduler(
+        loop,
+        config,
+        sleep_fn=lambda seconds: sleep_calls.append(seconds),
+        on_window=window_summaries.append,
+    )
+    scheduler.run_forever(max_iterations=3)
+
+    assert len(sleep_calls) == 3
+    assert len(window_summaries) == 3
+    # sleep is clamped to the configured interval, never negative
+    assert all(0 <= s <= config.duty_cycle.window_interval_minutes * 60 for s in sleep_calls)
+
+    captures_count = db_conn.execute("SELECT COUNT(*) FROM captures").fetchone()[0]
+    assert captures_count == 3

@@ -1,0 +1,38 @@
+# systemd unit for the edge/ process on the deployed Pi.
+#
+# Not usable until real hardware exists (see docs/pi-implementation.md) --
+# mock mode has no reason to run unattended on the buoy/dock Pi itself, only
+# on a dev machine. Written now so deployment is a copy-paste + two commands
+# once hardware is wired, not a from-scratch task at that point.
+#
+# Install:
+#   sudo cp deploy/marine-monitor.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now marine-monitor
+#
+# Before enabling: set hardware.mode: real in edge/config.yaml (or pass
+# --mode real below) once edge/hal/real.py's driver stubs are implemented --
+# running this unit in mock mode on the actual field Pi would just burn
+# power generating synthetic data instead of reading real sensors.
+#
+# Logs: journalctl -u marine-monitor -f
+
+[Unit]
+Description=Marine Ecosystem Monitoring - edge capture/telemetry loop
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/marine-monitor
+ExecStart=/usr/bin/python3 -m edge.main
+Restart=on-failure
+RestartSec=30
+# One duty-cycle window can legitimately take a while (audio capture +
+# FFT/feature extraction + anomaly scoring + telemetry send); give systemd
+# generous headroom before considering a hung window a failed start.
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

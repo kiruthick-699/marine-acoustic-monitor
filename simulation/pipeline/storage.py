@@ -9,6 +9,7 @@ exactly (same table/column names) so this code and that doc stay in sync.
 """
 
 import json
+import os
 import sqlite3
 from typing import Dict, Union
 
@@ -83,6 +84,15 @@ def init_db(path: str) -> sqlite3.Connection:
         An open sqlite3.Connection with the schema applied, ready for
         insert_window_record() calls.
     """
+    # sqlite3.connect() does not create missing parent directories itself --
+    # simulation/scripts/run_simulation.py happens to always makedirs() the
+    # output dir before calling this, but edge/main.py's first-ever run has
+    # no such guarantee (config.storage.db_path's parent may not exist yet
+    # on a fresh checkout), so it's handled here once, for every caller.
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
     conn = sqlite3.connect(path)
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.executescript(SCHEMA_SQL)
@@ -222,3 +232,57 @@ def insert_window_record(
         raise
 
     return capture_id
+
+
+def insert_system_health_log(
+    conn: sqlite3.Connection,
+    *,
+    timestamp_utc: str,
+    battery_voltage: float,
+    solar_charge_w: float,
+    enclosure_temp_c: float,
+    imu_orientation: Dict[str, float],
+    uptime_sec: int,
+) -> int:
+    """
+    Write one system_health_log row.
+
+    Decoupled from captures/feature_vectors/environmental_readings/
+    anomaly_flags by design (docs/data-pipeline.md: "system_health_log is
+    intentionally decoupled from captures since health telemetry may be
+    logged on a different cadence than acoustic sampling") -- callers may
+    invoke this once per capture window (edge/capture_loop.py's current
+    cadence) or on an independent schedule without needing a capture_id.
+
+    Args:
+        conn: open connection from init_db().
+        timestamp_utc: ISO 8601 reading timestamp.
+        battery_voltage: volts.
+        solar_charge_w: watts.
+        enclosure_temp_c: degrees Celsius.
+        imu_orientation: mapping (e.g. roll_deg/pitch_deg/yaw_deg/
+            accel_magnitude_g, per edge/hal/interfaces.py's IMUSensor)
+            serialized to JSON and stored as the imu_orientation BLOB.
+        uptime_sec: process/device uptime in seconds.
+
+    Returns:
+        The new row's log_id.
+    """
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO system_health_log
+            (timestamp_utc, battery_voltage, solar_charge_w, enclosure_temp_c, imu_orientation, uptime_sec)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            timestamp_utc,
+            battery_voltage,
+            solar_charge_w,
+            enclosure_temp_c,
+            json.dumps(imu_orientation).encode("utf-8"),
+            uptime_sec,
+        ),
+    )
+    conn.commit()
+    return cursor.lastrowid
