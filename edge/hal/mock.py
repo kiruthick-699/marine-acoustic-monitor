@@ -49,14 +49,22 @@ class MockHydrophone(HydrophoneSource):
         self,
         biological_call_probability: float = 0.12,
         vessel_event_probability: float = 0.08,
+        failure_rate: float = 0.0,
         rng: Optional[np.random.Generator] = None,
     ):
         self._bio_p = biological_call_probability
         self._vessel_p = vessel_event_probability
+        self._failure_rate = failure_rate
         self._rng = rng or np.random.default_rng()
         self.last_metadata: Optional[dict] = None
 
     def capture(self, duration_s: float, sample_rate: int) -> np.ndarray:
+        # HydrophoneSource has no "failed" return value (unlike
+        # TelemetryLink.send()'s bool), so a simulated failure raises --
+        # edge/capture_loop.py treats this as unrecoverable for the window.
+        if self._rng.random() < self._failure_rate:
+            raise RuntimeError("MockHydrophone: simulated capture failure")
+
         roll = self._rng.random()
         if roll < self._bio_p:
             anomaly = "biological"
@@ -84,8 +92,14 @@ class MockEnvironmentalSensors(EnvironmentalSensors):
     time -- it's polled once per wake window).
     """
 
-    def __init__(self, window_interval_minutes: float = 10.0, rng: Optional[np.random.Generator] = None):
+    def __init__(
+        self,
+        window_interval_minutes: float = 10.0,
+        failure_rate: float = 0.0,
+        rng: Optional[np.random.Generator] = None,
+    ):
         self._window_interval_minutes = window_interval_minutes
+        self._failure_rate = failure_rate
         self._elapsed_minutes = 0.0
         self._rng = rng or np.random.default_rng()
         self._storm_onset_minutes: Optional[float] = None
@@ -95,6 +109,13 @@ class MockEnvironmentalSensors(EnvironmentalSensors):
         self._storm_onset_minutes = self._elapsed_minutes
 
     def read(self) -> Dict[str, float]:
+        # Time still advances on a failed read (a missed sample, not a
+        # rewind) so the diel cycle and storm ramp stay correct once reads
+        # resume; see edge/capture_loop.py's fallback-reading handling.
+        if self._rng.random() < self._failure_rate:
+            self._elapsed_minutes += self._window_interval_minutes
+            raise RuntimeError("MockEnvironmentalSensors: simulated read failure")
+
         time_of_day_frac = (self._elapsed_minutes % MINUTES_PER_DAY) / MINUTES_PER_DAY
         peak_frac = 14.0 / 24.0
         diel_phase = 2 * np.pi * (time_of_day_frac - 0.25 + peak_frac)
@@ -137,12 +158,16 @@ class MockIMU(IMUSensor):
     context, not physically-accurate motion simulation).
     """
 
-    def __init__(self, rng: Optional[np.random.Generator] = None):
+    def __init__(self, failure_rate: float = 0.0, rng: Optional[np.random.Generator] = None):
+        self._failure_rate = failure_rate
         self._rng = rng or np.random.default_rng()
         self._t = 0.0
 
     def read(self) -> Dict[str, float]:
         self._t += 1.0
+        if self._rng.random() < self._failure_rate:
+            raise RuntimeError("MockIMU: simulated read failure")
+
         roll_deg = 3.0 * np.sin(self._t * 0.3) + self._rng.normal(0, 0.5)
         pitch_deg = 2.0 * np.sin(self._t * 0.21) + self._rng.normal(0, 0.5)
         yaw_deg = (self._rng.normal(0, 0.2) + self._t * 0.01) % 360
@@ -184,17 +209,21 @@ class MockPowerMonitor(PowerMonitor):
     seconds from construction.
     """
 
-    def __init__(self, rng: Optional[np.random.Generator] = None):
+    def __init__(self, failure_rate: float = 0.0, rng: Optional[np.random.Generator] = None):
+        self._failure_rate = failure_rate
         self._rng = rng or np.random.default_rng()
         self._start_time = time.monotonic()
         self._elapsed_minutes = 0.0
 
     def read(self) -> Dict[str, float]:
+        self._elapsed_minutes += 1.0
+        if self._rng.random() < self._failure_rate:
+            raise RuntimeError("MockPowerMonitor: simulated read failure")
+
         time_of_day_frac = (self._elapsed_minutes % MINUTES_PER_DAY) / MINUTES_PER_DAY
         solar_charge_w = max(0.0, 8.0 * np.sin(2 * np.pi * (time_of_day_frac - 0.25)))
         battery_voltage = 12.6 + 0.4 * np.sin(2 * np.pi * time_of_day_frac) + self._rng.normal(0, 0.02)
         enclosure_temp_c = 22.0 + 3.0 * np.sin(2 * np.pi * (time_of_day_frac - 0.25)) + self._rng.normal(0, 0.3)
-        self._elapsed_minutes += 1.0
 
         return {
             "battery_voltage": float(battery_voltage),

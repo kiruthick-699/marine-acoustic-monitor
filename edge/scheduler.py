@@ -10,11 +10,14 @@ window itself took to process, so drift doesn't accumulate window over
 window.
 """
 
+import logging
 import time
 from typing import Callable, Optional
 
-from edge.capture_loop import CaptureLoop
+from edge.capture_loop import CaptureLoop, WindowCaptureError
 from edge.config import EdgeConfig
+
+logger = logging.getLogger(__name__)
 
 
 class DutyCycleScheduler:
@@ -54,6 +57,11 @@ class DutyCycleScheduler:
         to >= 0 -- so on a Pi where capture+processing takes a non-trivial
         fraction of the interval, wake windows still land close to the
         configured M-minute cadence rather than drifting later each cycle.
+
+        A window that raises WindowCaptureError (audio capture or storage
+        failure) is logged and skipped -- per DECISIONS.md's duty-cycle
+        model, it is not retried mid-cycle; the loop just sleeps and moves
+        on to the next scheduled wake window.
         """
         interval_s = self._config.duty_cycle.window_interval_minutes * 60
         iterations = 0
@@ -61,9 +69,13 @@ class DutyCycleScheduler:
         while max_iterations is None or iterations < max_iterations:
             start = time.monotonic()
 
-            summary = self._loop.run_one_window()
-            if self._on_window is not None:
-                self._on_window(summary)
+            try:
+                summary = self._loop.run_one_window()
+            except WindowCaptureError as exc:
+                logger.error("duty-cycle window failed, skipping to next wake window: %s", exc)
+            else:
+                if self._on_window is not None:
+                    self._on_window(summary)
 
             elapsed = time.monotonic() - start
             sleep_for = max(0.0, interval_s - elapsed)

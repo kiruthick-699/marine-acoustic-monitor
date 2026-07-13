@@ -3,7 +3,7 @@ Scheduler test: bounded run (max_iterations) with an injected no-op sleep_fn
 so the test doesn't actually wait on wall-clock duty-cycle intervals.
 """
 
-from edge.capture_loop import CaptureLoop
+from edge.capture_loop import CaptureLoop, WindowCaptureError
 from edge.config import EdgeConfig
 from edge.hal.factory import build_hardware
 from edge.scheduler import DutyCycleScheduler
@@ -46,3 +46,42 @@ def test_run_forever_bounded_calls_on_window_and_sleep_each_iteration(tmp_path):
 
     captures_count = db_conn.execute("SELECT COUNT(*) FROM captures").fetchone()[0]
     assert captures_count == 3
+
+
+def test_run_forever_skips_failed_window_and_continues_to_next(tmp_path):
+    config = _make_config(tmp_path)
+    db_conn = init_db(config.storage.db_path)
+    hardware = build_hardware(config)
+    loop = CaptureLoop(config, hardware, db_conn)
+
+    # Fail only the 2nd of 3 windows -- proves a single bad window doesn't
+    # stop the scheduler from reaching the 3rd.
+    real_run_one_window = loop.run_one_window
+    calls = {"n": 0}
+
+    def flaky_run_one_window():
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise WindowCaptureError("simulated unrecoverable window failure")
+        return real_run_one_window()
+
+    loop.run_one_window = flaky_run_one_window
+
+    sleep_calls = []
+    window_summaries = []
+
+    scheduler = DutyCycleScheduler(
+        loop,
+        config,
+        sleep_fn=lambda seconds: sleep_calls.append(seconds),
+        on_window=window_summaries.append,
+    )
+    scheduler.run_forever(max_iterations=3)
+
+    # scheduler ran (and slept) all 3 iterations despite the failure...
+    assert calls["n"] == 3
+    assert len(sleep_calls) == 3
+    # ...but only the 2 successful windows produced a summary/capture row.
+    assert len(window_summaries) == 2
+    captures_count = db_conn.execute("SELECT COUNT(*) FROM captures").fetchone()[0]
+    assert captures_count == 2
